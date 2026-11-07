@@ -56,4 +56,4 @@ def run_server():
 threading.Thread(target=run_server, daemon=True).start()
 
 print("Бот запущен...")
-bot.polling(none_stop=True)
+bot.infinity_polling(timeout=20, long_polling_timeout=30)
