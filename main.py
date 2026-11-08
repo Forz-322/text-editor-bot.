@@ -69,7 +69,7 @@ if __name__ == "__main__":
     # Видаляємо старий вебхук (якщо був) і ставимо новий
     bot.remove_webhook()
     # Встановлюємо вебхук на адресу вашого сервісу
-    bot.set_webhook(url=WEBHOOK_URL + TELEGRAM_TOKEN)
+    bot.set_webhook(url=WEBHOOK_URL + "/" + TELEGRAM_TOKEN)
     
     # Запускаємо Flask сервер на порту, який надає Render
     port = int(os.environ.get('PORT', 5000))
