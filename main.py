@@ -1,13 +1,16 @@
 import os
 import telebot
 import requests
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
+from flask import Flask, request
 
+# --- Налаштування ---
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY')
+# URL вашого сервісу на Render (додамо пізніше в налаштуваннях)
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL') 
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+app = Flask(__name__)
 
 SYSTEM_PROMPT = """Відредагуй мій текст так, щоб він звучав грамотно, природно та переконливо. Збережи мою основну думку й усі важливі аргументи, але покращ формулювання, логіку та структуру речень.
 
@@ -18,6 +21,9 @@ SYSTEM_PROMPT = """Відредагуй мій текст так, щоб він 
 Не змінюй зміст моїх слів і не додавай вигаданих фактів. Текст має виглядати так, ніби його написала реальна людина, а не штучний інтелект.
 
 Зроби готовий варіант, який можна одразу скопіювати та надіслати."""
+
+# Обробник повідомлень (залишається без змін)
+@bot.message_handler(func=lambda message: True)
 def handle_message(message):
     bot.send_chat_action(message.chat.id, 'typing')
     user_text = message.text
@@ -46,20 +52,25 @@ def handle_message(message):
     except Exception as e:
         bot.reply_to(message, f"Ошибка: {e}")
 
-# --- Веб-сервер для Render ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running")
+# --- Webhook частина ---
+@app.route('/' + TELEGRAM_TOKEN, methods=['POST'])
+def getMessage():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
 
-def run_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    server.serve_forever()
+@app.route("/")
+def webhook():
+    # Цей маршрут потрібен для перевірки, що сервіс живий
+    return "Bot is running", 200
 
-# Запускаем сервер в фоне
-threading.Thread(target=run_server, daemon=True).start()
-
-print("Бот запущен...")
-bot.infinity_polling(timeout=20, long_polling_timeout=30)
+if __name__ == "__main__":
+    # Видаляємо старий вебхук (якщо був) і ставимо новий
+    bot.remove_webhook()
+    # Встановлюємо вебхук на адресу вашого сервісу
+    bot.set_webhook(url=WEBHOOK_URL + TELEGRAM_TOKEN)
+    
+    # Запускаємо Flask сервер на порту, який надає Render
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host="0.0.0.0", port=port)
